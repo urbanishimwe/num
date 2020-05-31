@@ -1,12 +1,12 @@
-# num
+// Copyright 2020 Urban Ishimwe. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
-Num is the command-line tool to parse integers from/to different formats.
-integers can be parsed to/from decimal, binary, octal, hexadecimal and byte(b) with data storage
-unitskilobyte(kb), gigabyte(gb), telabyte(tb), petabyte(pt) and exabyte(eb). custom format also supported 
+/*
 
-```
-go get -u github.com/urbanishimwe/num
-```
+Num is the command-line tool to parse integers from/to different formats, .
+integers can be parsed to/from decimal, binary, octal, hexadecimal and byte(b) with data storage unitskilobyte(kb),
+gigabyte(gb), telabyte(tb), petabyte(pt) and exabyte(eb). custom format also supported [https://github.com/urbanishimwe/num](https://github.com/urbanishimwe/num)
 
 **FLAGS:**
 ```
@@ -27,7 +27,7 @@ USAGE: (flag must be entered before input in the command line)
 
 you can add multiple bases like -x -d -o -b. the output of every input will be on a single line.
 Inputs can be separated with white space or newline. Data unit(flag -u) receive single units,
-in converting from Da to Db where Da < Db it is better to use custom format
+in converting from Da to Db where Da > Db it is better to use custom format
 that receive floating e.g: num -u GB -f="%0.4fGB" 10TB, note that everything is case insensitive.
 ```
 
@@ -57,3 +57,6 @@ num -u TB -f="%gTB" 0X_dad_face_dead_faceGB
 ```
 cat input.in | num -x -d -o -u=KB
 ```
+
+*/
+package main
