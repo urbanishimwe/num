@@ -1,4 +1,5 @@
 # num
+[![GoDoc](https://godoc.org/github.com/google/gopacket?status.svg)](https://godoc.org/github.com/urbanishimwe/num)
 
 Num is the command-line tool to parse integers from/to different formats.
 integers can be parsed to/from decimal, binary, octal, hexadecimal and byte(b) with data storage

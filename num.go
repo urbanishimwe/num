@@ -81,28 +81,30 @@ func main() {
 func output(v string) string {
 	var format string
 	var fCount int
-	switch {
-	case f != "":
+	if f != "" {
 		format = f
 		fCount = fC
-	case x:
-		format += "0x%x "
-		fCount++
-		fallthrough
-	case o:
-		format += "0o%o "
-		fCount++
-		fallthrough
-	case b:
-		format += "0b%b "
-		fCount++
-		fallthrough
-	case d:
-		format += "%v "
-		fCount++
-	default:
-		format += "%v "
-		fCount++
+	} else {
+		if x {
+			format += "0x%x "
+			fCount++
+		}
+		if d {
+			format += "%v "
+			fCount++
+		}
+		if o {
+			format += "0o%o "
+			fCount++
+		}
+		if b {
+			format += "0b%b "
+			fCount++
+		}
+		if !(x || b || o || d) {
+			format += "%v "
+			fCount++
+		}
 	}
 	Lf := len(format)
 	if Lf > 1 && format[Lf-1] == ' ' {
