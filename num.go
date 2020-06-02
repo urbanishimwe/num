@@ -28,10 +28,11 @@ const (
 type V []string
 
 var (
-	x, o, d, b, stdin bool
-	u, f              string
-	fC                int
-	v                 = new(V)
+	x, o, d, b  bool
+	s, stdin, c bool
+	u, f        string
+	fC          int
+	v           = new(V)
 )
 
 func init() {
@@ -58,23 +59,29 @@ func main() {
 	flag.BoolVar(&d, "d", false, "output in decimal(default)")
 	flag.BoolVar(&o, "o", false, "output in octal")
 	flag.BoolVar(&b, "b", false, "output in binary")
+	flag.BoolVar(&s, "s", false, "input numbers will be converted to string UTF8")
+	flag.BoolVar(&c, "c", false, "input will be treated as UTF8 characters. it doesn't allow data units and multiple bases, custom format will be applied on every character")
 	flag.StringVar(&u, "u", "b", "data units for the output i.e KB, MB, GB, TB, PB or EB")
 	flag.StringVar(&f, "f", "", "custom output format with valid printf flags, it does not affect data unit but it will override other formats")
 	flag.IntVar(&fC, "f-count", 1, "number of flags parsed in custom format(--f). e.g --f '%q %x' --f-count must be 2")
 	flag.BoolVar(&stdin, "stdin", false, "read input from stdin pipe line by line until EOF")
 	flag.Parse()
 	if stdin {
-		var in string
 		buf := bufio.NewScanner(os.Stdin)
 		for buf.Scan() {
-			in += " " + buf.Text()
+			v.Set(buf.Text())
 		}
-		v.Set(in)
 	} else {
-		v.Set(strings.Join(flag.Args(), " "))
+		for _, val := range flag.Args() {
+			v.Set(val)
+		}
 	}
 	for _, val := range *v {
-		fmt.Println(output(val))
+		if !c {
+			fmt.Println(output(val))
+			continue
+		}
+		fmt.Println(outputUTF8(val))
 	}
 }
 
@@ -150,6 +157,10 @@ func output(v string) string {
 		cut = 0
 	}
 	v = v[:len(v)-cut]
+	if s && f == "" {
+		dt, _ := strconv.ParseUint(v, 0, 64)
+		return string(dt)
+	}
 	vInt := make([]interface{}, fCount)
 	for i := range vInt {
 		dt, err := strconv.ParseUint(v, 0, 64)
@@ -166,28 +177,52 @@ func output(v string) string {
 	return fmt.Sprintf(format, vInt...)
 }
 
+func outputUTF8(v string) string {
+	var res string
+	for _, val := range v {
+		var format string
+		if f != "" {
+			format = f
+		} else {
+			if x {
+				format = "0x%x "
+			} else if d {
+				format = "%d "
+			} else if o {
+				format = "0o%o "
+			} else if b {
+				format = "0b%b "
+			} else {
+				format = "%d "
+			}
+		}
+		res += fmt.Sprintf(format, val)
+	}
+	if res[len(res)-1] == ' ' {
+		return res[:len(res)-1]
+	}
+	return res
+}
+
 // Set ...
 func (t *V) Set(a string) {
+	if len(*t) == 0 {
+		*t = []string{}
+	}
+	if c {
+		*t = append(*t, a)
+		return
+	}
 	a = strings.TrimLeft(a, "-")
 	v := strings.Split(a, " ")
 
-	// removing empty entries
-	La := len(v)
-	i := 0
-	for i < La {
-		v[i] = strings.ReplaceAll(v[i], " ", "")
-		if v[i] == "" {
-			if (i + 1) == La {
-				v = v[:i]
-			} else {
-				v = append(v[:i], v[i+1:]...)
-			}
-			La--
-			continue
+	// ignoring empty entries
+	for _, val := range v {
+		val = strings.ReplaceAll(val, " ", "")
+		if val != "" {
+			*t = append(*t, val)
 		}
-		i++
 	}
-	*t = v
 }
 
 // ASCIIEndsWithFold ...
