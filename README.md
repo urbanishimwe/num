@@ -21,7 +21,7 @@ USAGE: (flag must be entered before input in the command line)
   -f-count int
         number of flags parsed in custom format(--f). e.g --f '%q %x' --f-count must be 2 (default 1)
   -o    output in octal
-  -s    input numbers will be converted to string UTF8
+  -s    output the UTF8 equivalent of a number
   -stdin
         read input from stdin pipe line by line until EOF
   -u string

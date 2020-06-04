@@ -59,7 +59,7 @@ func main() {
 	flag.BoolVar(&d, "d", false, "output in decimal(default)")
 	flag.BoolVar(&o, "o", false, "output in octal")
 	flag.BoolVar(&b, "b", false, "output in binary")
-	flag.BoolVar(&s, "s", false, "input numbers will be converted to string UTF8")
+	flag.BoolVar(&s, "s", false, "output the UTF8 equivalent of a number")
 	flag.BoolVar(&c, "c", false, "input will be treated as UTF8 characters. it doesn't allow data units and multiple bases, custom format will be applied on every character")
 	flag.StringVar(&u, "u", "b", "data units for the output i.e KB, MB, GB, TB, PB or EB")
 	flag.StringVar(&f, "f", "", "custom output format with valid printf flags, it does not affect data unit but it will override other formats")
@@ -106,6 +106,10 @@ func output(v string) string {
 		}
 		if b {
 			format += "0b%b "
+			fCount++
+		}
+		if s {
+			format += "%c "
 			fCount++
 		}
 		if !(x || b || o || d) {
@@ -157,10 +161,6 @@ func output(v string) string {
 		cut = 0
 	}
 	v = v[:len(v)-cut]
-	if s && f == "" {
-		dt, _ := strconv.ParseUint(v, 0, 64)
-		return string(dt)
-	}
 	vInt := make([]interface{}, fCount)
 	for i := range vInt {
 		dt, err := strconv.ParseUint(v, 0, 64)
