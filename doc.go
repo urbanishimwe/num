@@ -8,7 +8,7 @@ Num is the command-line tool to parse integers from/to different formats.
 Integers can be parsed to/from decimal, binary, octal, hexadecimal and byte(b) with data storage units kilobyte(kb),
 gigabyte(gb), telabyte(tb), petabyte(pt) and exabyte(eb). custom format also supported [https://github.com/urbanishimwe/num](https://github.com/urbanishimwe/num)
 
-<b>FLAGS:</b>
+FLAGS:
 USAGE: (flag must be entered before input in the command line)
 
 
@@ -33,42 +33,42 @@ in converting from Da to Db where Da > Db it is better to use custom format
 that receive floating e.g: num -u GB -f="%0.4fGB" 10TB, note that everything is case insensitive.
 
 
-<b>examples</b>
+examples
 
 - converting to GB:
-<b>
+
 num -u GB 10TB 8EB:
-</b>
+
 
 - converting to GB and in binary:
-<b>
+
 num -u -b 10TB
-</b>
+
 
 - converting from hexadecimal to decimal:
-<b>
+
 num 0x_dad_face
-</b>
+
 
 - converting from octal with Data unit and custom format:
-<b>
+
 num -u TB -f="%gTB" 0X_dad_face_dead_faceGB
-</b>
+
 
 - UTF8 strings:
-<b>
+
 num -c 😍 // output: 128525
-</b>
+
 
 - UTF8 Code points:
-<b>
+
 num -s 128525 // output: 😍
-</b>
+
 
 - reading input from file with in multiple bases:
-<b>
+
 cat input.in | num -x -d -o -u=KB
-</b>
+
 
 */
 package main

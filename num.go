@@ -112,7 +112,7 @@ func output(v string) string {
 			format += "%c "
 			fCount++
 		}
-		if !(x || b || o || d) {
+		if !(x || b || o || d || s) {
 			format += "%v "
 			fCount++
 		}
