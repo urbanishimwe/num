@@ -1,9 +1,7 @@
 # num
 [![GoDoc](https://godoc.org/github.com/google/gopacket?status.svg)](https://godoc.org/github.com/urbanishimwe/num)
 
-Num is the command-line tool to parse integers from/to different formats.
-Integers can be parsed to/from decimal, binary, octal, hexadecimal and byte(b) with data storage units kilobyte(kb),
-gigabyte(gb), telabyte(tb), petabyte(pt) and exabyte(eb). custom format also supported
+Num is the CLI to transform integers and characters.
 
 ```
 go get -u github.com/urbanishimwe/num
@@ -11,27 +9,23 @@ go get -u github.com/urbanishimwe/num
 
 **FLAGS:**
 ```
-USAGE: (flag must be entered before input in the command line)
+USAGE: flags must be entered before inputs in the command-line
 
-  -b    output in binary
-  -c    input will be treated as UTF8 characters. it doesn't allow data units and multiple bases, custom format will be applied on every character
-  -d    output in decimal(default)
+  -b    append output in binary
+  -c    treat input as characters and convert them to integers.
+  -d    apend output in decimal(default)
   -f string
-        custom output format with valid printf flags, it does not affect data unit but it will override other formats
-  -f-count int
-        number of flags parsed in custom format(--f). e.g --f '%q %x' --f-count must be 2 (default 1)
-  -o    output in octal
-  -s    output the UTF8 equivalent of a number
+        name of the file to read inputs from
+  -format string
+        custom output format with valid printf flags, this override bases flags
+  -o    append output in octal
+  -s    append output of an integer converted to a character
   -stdin
-        read input from stdin pipe line by line until EOF
+        allow blocking for inputs from standard input stream
   -u string
-        data units for the output i.e KB, MB, GB, TB, PB or EB (default "b")
-  -x    output in hexadecimal
-
-you can add multiple bases like -x -d -o -b. the output of every input will be on a single line.
-Inputs can be separated with white space or newline. Data unit(flag -u) receive single units,
-in converting from Da to Db where Da > Db it is better to use custom format
-that receive floating e.g: num -u GB -f="%0.4fGB" 10TB, note that everything is case insensitive.
+        data units for the output i.e B, KB, MB, GB, TB, PB or EB (default "b")
+  -v    verbose: prints parser errors on standard error stream
+  -x    append output in hexadecimal
 ```
 
 **examples**

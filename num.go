@@ -6,11 +6,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 // Data storage units
@@ -24,118 +26,91 @@ const (
 	EB
 )
 
-// V array of values
-type V []string
-
 var (
-	x, o, d, b  bool
-	s, stdin, c bool
-	u, f        string
-	fC          int
-	v           = new(V)
+	x, o, d, c bool
+	s, stdin   bool
+	verbose, b bool
+	u, format  string
+	_fmt, f    string
+	fCount     int
 )
 
-func init() {
-	flag.Usage = func() {
-		const title = `
-Num is the command line tool to parse integers in/from different bases and data units.
-
-USAGE: (flag must be entered before input in the command line)
-`
-		fmt.Println(title)
-		flag.PrintDefaults()
-		const footer = `
-you can add multiple bases like -x -d -o -b. the output of every input will be on a single line.
-Inputs can be separated with white space or newline. Data unit(flag -u) receive single units,
-in converting from Da to Db where Da > Db it is better to use custom format
-that receive floating e.g: num -u GB -f="%0.4fGB" 10TB, note that everything is case insensitive.
-`
-		fmt.Println(footer)
-	}
-}
-
 func main() {
-	flag.BoolVar(&x, "x", false, "output in hexadecimal")
-	flag.BoolVar(&d, "d", false, "output in decimal(default)")
-	flag.BoolVar(&o, "o", false, "output in octal")
-	flag.BoolVar(&b, "b", false, "output in binary")
-	flag.BoolVar(&s, "s", false, "output the UTF8 equivalent of a number")
-	flag.BoolVar(&c, "c", false, "input will be treated as UTF8 characters. it doesn't allow data units and multiple bases, custom format will be applied on every character")
-	flag.StringVar(&u, "u", "b", "data units for the output i.e KB, MB, GB, TB, PB or EB")
-	flag.StringVar(&f, "f", "", "custom output format with valid printf flags, it does not affect data unit but it will override other formats")
-	flag.IntVar(&fC, "f-count", 1, "number of flags parsed in custom format(--f). e.g --f '%q %x' --f-count must be 2")
-	flag.BoolVar(&stdin, "stdin", false, "read input from stdin pipe line by line until EOF")
+	flag.BoolVar(&x, "x", false, "append output in hexadecimal")
+	flag.BoolVar(&d, "d", false, "apend output in decimal(default)")
+	flag.BoolVar(&o, "o", false, "append output in octal")
+	flag.BoolVar(&b, "b", false, "append output in binary")
+	flag.BoolVar(&s, "s", false, "append output of an integer converted to a character")
+	flag.BoolVar(&c, "c", false, "treat input as characters and convert them to integers.")
+	flag.BoolVar(&verbose, "v", false, "verbose: prints parser errors on standard error stream")
+	flag.StringVar(&u, "u", "b", "data units for the output i.e B, KB, MB, GB, TB, PB or EB")
+	flag.StringVar(&format, "format", "", "custom output format with valid printf flags, this override bases flags")
+	flag.StringVar(&f, "f", "", "name of the file to read inputs from")
+	flag.BoolVar(&stdin, "stdin", false, "allow blocking for inputs from standard input stream")
 	flag.Parse()
-	if stdin {
-		buf := bufio.NewScanner(os.Stdin)
-		for buf.Scan() {
-			v.Set(buf.Text())
-		}
-	} else {
-		for _, val := range flag.Args() {
-			v.Set(val)
+	parseFormater()
+
+	// command-line inputs
+	leftArgs := flag.Args()
+	if len(leftArgs) > 0 {
+		for i := range leftArgs {
+			if c {
+				fmt.Println(outputChar(leftArgs[i]))
+			} else {
+				fmt.Println(outputInt(leftArgs[i]))
+			}
 		}
 	}
-	for _, val := range *v {
-		if !c {
-			fmt.Println(output(val))
-			continue
+
+	var reader *bufio.Scanner
+	switch {
+
+	// check for file inputs
+	case f != "":
+		f, err := os.Open(f)
+		mayBeExit(err)
+		reader = bufio.NewScanner(f)
+		readFromScanner(reader)
+
+	// check for inputs from pipe and stdin
+	default:
+		stat, err := os.Stdin.Stat()
+		// no other inputs we got
+		if len(leftArgs) < 1 && reader == nil {
+			mayBeExit(err)
 		}
-		fmt.Println(outputUTF8(val))
+		if stat == nil {
+			return
+		}
+		charDevice := stat.Mode()&os.ModeDevice != 0 && stat.Mode()&os.ModeCharDevice != 0
+		// read from a pipe?
+		if !charDevice {
+			reader = bufio.NewScanner(os.Stdin)
+			readFromScanner(reader)
+		}
+		// block for input?
+		if charDevice && stdin {
+			reader = bufio.NewScanner(os.Stdin)
+			readFromScanner(reader)
+		}
 	}
 }
 
-func output(v string) string {
-	var format string
-	var fCount int
-	if f != "" {
-		format = f
-		fCount = fC
-	} else {
-		if x {
-			format += "0x%x "
-			fCount++
-		}
-		if d {
-			format += "%v "
-			fCount++
-		}
-		if o {
-			format += "0o%o "
-			fCount++
-		}
-		if b {
-			format += "0b%b "
-			fCount++
-		}
-		if s {
-			format += "%c "
-			fCount++
-		}
-		if !(x || b || o || d || s) {
-			format += "%v "
-			fCount++
-		}
-	}
-	Lf := len(format)
-	if Lf > 1 && format[Lf-1] == ' ' {
-		format = format[:Lf-1]
-	}
-
+func outputInt(v string) string {
 	t := 1
 	uToB := []byte(u)
 	switch {
-	case ASCIIEndsWithFold(uToB, []byte("kb")):
+	case endsWithFold(uToB, []byte("kb")):
 		t = KB
-	case ASCIIEndsWithFold(uToB, []byte("mb")):
+	case endsWithFold(uToB, []byte("mb")):
 		t = MB
-	case ASCIIEndsWithFold(uToB, []byte("gb")):
+	case endsWithFold(uToB, []byte("gb")):
 		t = GB
-	case ASCIIEndsWithFold(uToB, []byte("tb")):
+	case endsWithFold(uToB, []byte("tb")):
 		t = TB
-	case ASCIIEndsWithFold(uToB, []byte("pb")):
+	case endsWithFold(uToB, []byte("pb")):
 		t = PB
-	case ASCIIEndsWithFold(uToB, []byte("eb")):
+	case endsWithFold(uToB, []byte("eb")):
 		t = EB
 	default:
 		t = 1
@@ -143,114 +118,147 @@ func output(v string) string {
 	t2, cut := 1, 2
 	vToB := []byte(v)
 	switch {
-	case ASCIIEndsWithFold(vToB, []byte("kb")):
+	case endsWithFold(vToB, []byte("kb")):
 		t2 = KB
-	case ASCIIEndsWithFold(vToB, []byte("mb")):
+	case endsWithFold(vToB, []byte("mb")):
 		t2 = MB
-	case ASCIIEndsWithFold(vToB, []byte("gb")):
+	case endsWithFold(vToB, []byte("gb")):
 		t2 = GB
-	case ASCIIEndsWithFold(vToB, []byte("tb")):
+	case endsWithFold(vToB, []byte("tb")):
 		t2 = TB
-	case ASCIIEndsWithFold(vToB, []byte("pb")):
+	case endsWithFold(vToB, []byte("pb")):
 		t2 = PB
-	case ASCIIEndsWithFold(vToB, []byte("eb")):
+	case endsWithFold(vToB, []byte("eb")):
 		t2 = EB
-	case ASCIIEndsWithFold(vToB, []byte("b")):
+	case endsWithFold(vToB, []byte("b")):
 		cut = 1
 	default:
 		cut = 0
 	}
 	v = v[:len(v)-cut]
 	vInt := make([]interface{}, fCount)
-	for i := range vInt {
-		dt, err := strconv.ParseUint(v, 0, 64)
-		if err != nil {
-			vInt[i] = 0
-			continue
+	dt, err := strconv.ParseInt(v, 0, 64)
+	if err != nil {
+		if verbose {
+			fmt.Fprintf(os.Stderr, "output int error: %q", err)
 		}
+		return ""
+	}
+	for i := range vInt {
 		if t > t2 {
 			vInt[i] = float64(dt) * float64(t2) / float64(t)
 			continue
 		}
-		vInt[i] = dt * uint64(t2/t)
+		vInt[i] = dt * int64(t2/t)
 	}
-	return fmt.Sprintf(format, vInt...)
+	return fmt.Sprintf(_fmt, vInt...)
 }
 
-func outputUTF8(v string) string {
-	var res string
+func outputChar(v string) string {
+	var res strings.Builder
+	vChar := make([]interface{}, fCount)
 	for _, val := range v {
-		var format string
-		if f != "" {
-			format = f
-		} else {
-			if x {
-				format = "0x%x "
-			} else if d {
-				format = "%d "
-			} else if o {
-				format = "0o%o "
-			} else if b {
-				format = "0b%b "
-			} else {
-				format = "%d "
-			}
+		for i := 0; i < fCount; i++ {
+			vChar[i] = val
 		}
-		res += fmt.Sprintf(format, val)
+		res.WriteString(fmt.Sprintf(_fmt, vChar...))
 	}
-	if res[len(res)-1] == ' ' {
-		return res[:len(res)-1]
-	}
-	return res
+	buf := res.String()
+	return buf
 }
 
-// Set ...
-func (t *V) Set(a string) {
-	if len(*t) == 0 {
-		*t = []string{}
-	}
-	if c {
-		*t = append(*t, a)
-		return
-	}
-	a = strings.TrimLeft(a, "-")
-	v := strings.Split(a, " ")
-
-	// ignoring empty entries
-	for _, val := range v {
-		val = strings.ReplaceAll(val, " ", "")
-		if val != "" {
-			*t = append(*t, val)
-		}
-	}
-}
-
-// ASCIIEndsWithFold ...
-func ASCIIEndsWithFold(a, b []byte) bool {
-	La, Lb := len(a), len(b)
-	if La < Lb {
+func endsWithFold(a, b []byte) bool {
+	if len(a) < len(b) {
 		return false
 	}
-	const (
-		A byte = 0x41 // 'A'
-		// Z  byte = 0x5a // 'Z'
-		_A byte = 0x61 // 'a'
-		_Z byte = 0x7a // 'z'
-	)
-	for i, v := range a[La-Lb:] {
-		n := b[i]
-		if v == n {
-			continue
+	return bytes.EqualFold(a[len(a)-len(b):], b)
+}
+
+func parseFormater() {
+	if format != "" {
+		_fmt = format
+		countFmt()
+	} else {
+		if x {
+			_fmt += "0x%x "
+			fCount++
 		}
-		if n >= _A && n <= _Z {
-			n -= (_A - A)
+		if d {
+			_fmt += "%v "
+			fCount++
 		}
-		if v >= _A && v <= _Z {
-			v -= (_A - A)
+		if o {
+			_fmt += "0%o "
+			fCount++
 		}
-		if v != n {
-			return false
+		if b {
+			_fmt += "0b%b "
+			fCount++
+		}
+		if s {
+			_fmt += "%q "
+			fCount++
+		}
+		if _fmt == "" {
+			_fmt = "%v"
+			fCount++
 		}
 	}
-	return true
+	if fCount > 1 && c {
+		_fmt += "\n"
+	}
+}
+
+func readFromScanner(reader *bufio.Scanner) {
+	if !c {
+		reader.Split(bufio.ScanWords)
+	}
+	for reader.Scan() {
+		if c {
+			fmt.Println(outputChar(stringy(reader.Bytes())))
+			continue
+		}
+		fmt.Println(outputInt(stringy(reader.Bytes())))
+	}
+	if reader.Err() != nil && verbose {
+		fmt.Fprintf(os.Stderr, "scanner error: %q", reader.Err())
+	}
+}
+
+func mayBeExit(err error) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.Error()+"\n")
+		os.Exit(1)
+	}
+}
+
+func stringy(buf []byte) string {
+	return *(*string)(unsafe.Pointer(&buf))
+}
+
+func countFmt() {
+	rd := strings.NewReader(format)
+	var r0, r1 rune
+	var err error
+	for err == nil {
+		r0, _, err = rd.ReadRune()
+		if r0 == '%' {
+			r1, _, err = rd.ReadRune()
+			if r1 != '%' {
+				fCount++
+			}
+		}
+	}
+}
+
+func init() {
+	flag.Usage = func() {
+		const title = `
+Num is the CLI to transform integers and characters.
+
+USAGE: flags must be entered before inputs in the command-line
+`
+		fmt.Fprintln(os.Stderr, title)
+		flag.PrintDefaults()
+	}
 }
