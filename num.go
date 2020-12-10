@@ -23,7 +23,6 @@ const (
 	GB
 	TB
 	PB
-	EB
 )
 
 var (
@@ -43,7 +42,7 @@ func main() {
 	flag.BoolVar(&s, "s", false, "append output of an integer converted to a character")
 	flag.BoolVar(&c, "c", false, "treat input as characters and convert them to integers.")
 	flag.BoolVar(&verbose, "v", false, "verbose: prints parser errors on standard error stream")
-	flag.StringVar(&u, "u", "b", "data units for the output i.e B, KB, MB, GB, TB, PB or EB")
+	flag.StringVar(&u, "u", "b", "data units for the output i.e B, KB, MB, GB, TB, or PB")
 	flag.StringVar(&format, "format", "", "custom output format with valid printf flags, this override bases flags")
 	flag.StringVar(&f, "f", "", "name of the file to read inputs from")
 	flag.BoolVar(&stdin, "stdin", false, "allow blocking for inputs from standard input stream")
@@ -110,8 +109,6 @@ func outputInt(v string) string {
 		t = TB
 	case endsWithFold(uToB, []byte("pb")):
 		t = PB
-	case endsWithFold(uToB, []byte("eb")):
-		t = EB
 	default:
 		t = 1
 	}
@@ -128,8 +125,6 @@ func outputInt(v string) string {
 		t2 = TB
 	case endsWithFold(vToB, []byte("pb")):
 		t2 = PB
-	case endsWithFold(vToB, []byte("eb")):
-		t2 = EB
 	case endsWithFold(vToB, []byte("b")):
 		cut = 1
 	default:

@@ -20,7 +20,7 @@ USAGE: flags must be entered before inputs in the command-line
   -stdin
         allow blocking for inputs from standard input stream
   -u string
-        data units for the output i.e B, KB, MB, GB, TB, PB or EB (default "b")
+        data units for the output i.e B, KB, MB, GB, TB, or PB (default "b")
   -v    verbose: prints parser errors on standard error stream
   -x    append output in hexadecimal
 
@@ -28,7 +28,7 @@ examples
 
 - converting to GB:
 
-num -u GB 10TB 8EB:
+num -u GB 10TB 8GB:
 
 
 - converting to GB and in binary:
