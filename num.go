@@ -126,6 +126,10 @@ func outputInt(v string) string {
 	case endsWithFold(vToB, []byte("pb")):
 		t2 = PB
 	case endsWithFold(vToB, []byte("b")):
+		if len(vToB) > 2 && (vToB[1] == 'x' || vToB[1] == 'X') {
+			cut = 0
+			break
+		}
 		cut = 1
 	default:
 		cut = 0
