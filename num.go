@@ -9,10 +9,10 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
-	"unsafe"
 )
 
 // Data storage units
@@ -30,69 +30,33 @@ var (
 	s, stdin   bool
 	verbose, b bool
 	u, format  string
-	_fmt, f    string
+	_fmt       string
 	fCount     int
 )
 
 func main() {
-	flag.BoolVar(&x, "x", false, "append output in hexadecimal")
-	flag.BoolVar(&d, "d", false, "apend output in decimal(default)")
-	flag.BoolVar(&o, "o", false, "append output in octal")
-	flag.BoolVar(&b, "b", false, "append output in binary")
-	flag.BoolVar(&s, "s", false, "append output of an integer converted to a character")
-	flag.BoolVar(&c, "c", false, "treat input as characters and convert them to integers.")
-	flag.BoolVar(&verbose, "v", false, "verbose: prints parser errors on standard error stream")
-	flag.StringVar(&u, "u", "b", "data units for the output i.e B, KB, MB, GB, TB, or PB")
-	flag.StringVar(&format, "format", "", "custom output format with valid printf flags, this override bases flags")
-	flag.StringVar(&f, "f", "", "name of the file to read inputs from")
-	flag.BoolVar(&stdin, "stdin", false, "allow blocking for inputs from standard input stream")
-	flag.Parse()
 	parseFormater()
 
 	// command-line inputs
 	leftArgs := flag.Args()
 	if len(leftArgs) > 0 {
-		for i := range leftArgs {
+		for _, str := range leftArgs {
 			if c {
-				fmt.Println(outputChar(leftArgs[i]))
+				for _, v := range str {
+					fmt.Println(outputChar(v))
+				}
 			} else {
-				fmt.Println(outputInt(leftArgs[i]))
+				fmt.Println(outputInt(str))
 			}
 		}
 	}
-
-	var reader *bufio.Scanner
-	switch {
-
-	// check for file inputs
-	case f != "":
-		f, err := os.Open(f)
-		mayBeExit(err)
-		reader = bufio.NewScanner(f)
-		readFromScanner(reader)
-
-	// check for inputs from pipe and stdin
-	default:
-		stat, err := os.Stdin.Stat()
-		// no other inputs we got
-		if len(leftArgs) < 1 && reader == nil {
-			mayBeExit(err)
-		}
-		if stat == nil {
-			return
-		}
-		charDevice := stat.Mode()&os.ModeDevice != 0 && stat.Mode()&os.ModeCharDevice != 0
-		// read from a pipe?
-		if !charDevice {
-			reader = bufio.NewScanner(os.Stdin)
-			readFromScanner(reader)
-		}
-		// block for input?
-		if charDevice && stdin {
-			reader = bufio.NewScanner(os.Stdin)
-			readFromScanner(reader)
-		}
+	var scanner *bufio.Scanner
+	if stdin {
+		scanner = bufio.NewScanner(os.Stdin)
+	} else {
+		scanner = bufio.NewScanner(nonBlockStdin(0))
 	}
+	readFromScanner(scanner)
 }
 
 func outputInt(v string) string {
@@ -125,17 +89,11 @@ func outputInt(v string) string {
 		t2 = TB
 	case endsWithFold(vToB, []byte("pb")):
 		t2 = PB
-	case endsWithFold(vToB, []byte("b")):
-		if len(vToB) > 2 && (vToB[1] == 'x' || vToB[1] == 'X') {
-			cut = 0
-			break
-		}
 		cut = 1
 	default:
 		cut = 0
 	}
 	v = v[:len(v)-cut]
-	vInt := make([]interface{}, fCount)
 	dt, err := strconv.ParseInt(v, 0, 64)
 	if err != nil {
 		if verbose {
@@ -143,27 +101,20 @@ func outputInt(v string) string {
 		}
 		return ""
 	}
-	for i := range vInt {
-		if t > t2 {
-			vInt[i] = float64(dt) * float64(t2) / float64(t)
-			continue
-		}
-		vInt[i] = dt * int64(t2/t)
+	dt = (dt * int64(t2)) / int64(t)
+	vInts := make([]interface{}, fCount)
+	for i := range vInts {
+		vInts[i] = dt
 	}
-	return fmt.Sprintf(_fmt, vInt...)
+	return fmt.Sprintf(_fmt, vInts...)
 }
 
-func outputChar(v string) string {
-	var res strings.Builder
+func outputChar(v rune) string {
 	vChar := make([]interface{}, fCount)
-	for _, val := range v {
-		for i := 0; i < fCount; i++ {
-			vChar[i] = val
-		}
-		res.WriteString(fmt.Sprintf(_fmt, vChar...))
+	for i := 0; i < fCount; i++ {
+		vChar[i] = v
 	}
-	buf := res.String()
-	return buf
+	return fmt.Sprintf(_fmt, vChar...)
 }
 
 func endsWithFold(a, b []byte) bool {
@@ -203,36 +154,6 @@ func parseFormater() {
 			fCount++
 		}
 	}
-	if fCount > 1 && c {
-		_fmt += "\n"
-	}
-}
-
-func readFromScanner(reader *bufio.Scanner) {
-	if !c {
-		reader.Split(bufio.ScanWords)
-	}
-	for reader.Scan() {
-		if c {
-			fmt.Println(outputChar(stringy(reader.Bytes())))
-			continue
-		}
-		fmt.Println(outputInt(stringy(reader.Bytes())))
-	}
-	if reader.Err() != nil && verbose {
-		fmt.Fprintf(os.Stderr, "scanner error: %q", reader.Err())
-	}
-}
-
-func mayBeExit(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, err.Error()+"\n")
-		os.Exit(1)
-	}
-}
-
-func stringy(buf []byte) string {
-	return *(*string)(unsafe.Pointer(&buf))
 }
 
 func countFmt() {
@@ -250,14 +171,61 @@ func countFmt() {
 	}
 }
 
+func readFromScanner(reader *bufio.Scanner) {
+	if c {
+		reader.Split(bufio.ScanRunes)
+	} else {
+		reader.Split(bufio.ScanWords)
+	}
+	for reader.Scan() {
+		if c {
+			token := reader.Text()
+			fmt.Println(outputChar([]rune(token)[0]))
+			continue
+		}
+		fmt.Println(outputInt(string(reader.Bytes())))
+	}
+	if reader.Err() != nil && verbose {
+		fmt.Fprintf(os.Stderr, "scanner error: %q", reader.Err())
+	}
+}
+
+type nonBlockStdin int
+
+func (b nonBlockStdin) Read(p []byte) (int, error) {
+	fs, err := os.Stdin.Stat()
+	if err != nil {
+		return 0, err
+	}
+	if fs.Size() > 0 {
+		return os.Stdin.Read(p)
+	}
+	return 0, io.EOF
+}
+
 func init() {
 	flag.Usage = func() {
-		const title = `
-Num is the CLI to transform integers and characters.
+		var title = `Num is the CLI to transform integers and characters.
+Results of multiple inputs are separated by newline(\n).
 
-USAGE: flags must be entered before inputs in the command-line
+USAGE: flags must be entered before inputs in the command-line.
+Parsing order start with command line inputs and then standard input or terminal pipe.
+
+OUTPUT Order: [hex-format] [base 10] [octal] [binary] [utf-8].
 `
+
 		fmt.Fprintln(os.Stderr, title)
 		flag.PrintDefaults()
 	}
+	flag.BoolVar(&x, "x", false, "append output in hexadecimal")
+	flag.BoolVar(&d, "d", false, "apend output in decimal(default)")
+	flag.BoolVar(&o, "o", false, "append output in octal")
+	flag.BoolVar(&b, "b", false, "append output in binary")
+	flag.BoolVar(&s, "s", false, "append output of an integer converted to a character")
+	flag.BoolVar(&c, "c", false, "treat input as utf-8 characters and convert them to integers.")
+	flag.BoolVar(&verbose, "v", false, "verbose: prints parser errors on standard error stream")
+	flag.StringVar(&u, "u", "b", "data units for the output i.e KB, MB, GB, TB, or PB. can be used with -f")
+	flag.StringVar(&format, "f", "", "output format with valid printf flags. It will be used instead of other output flags")
+	flag.BoolVar(&stdin, "stdin", false, "allow blocking for inputs from standard input stream")
+	flag.Parse()
 }
